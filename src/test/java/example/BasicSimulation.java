@@ -1,35 +1,74 @@
 package example;
 
-import static io.gatling.javaapi.core.CoreDsl.*;
-import static io.gatling.javaapi.http.HttpDsl.*;
-
 import io.gatling.javaapi.core.*;
 import io.gatling.javaapi.http.*;
 
+import static io.gatling.javaapi.core.CoreDsl.*;
+import static io.gatling.javaapi.http.HttpDsl.*;
+
 public class BasicSimulation extends Simulation {
 
-  // Load VU count from system properties
-  // Reference: https://docs.gatling.io/guides/passing-parameters/
-  private static final int vu = Integer.getInteger("vu", 1);
+    // Feeder para cargar datos dinámicos desde un archivo CSV
+    private static final FeederBuilder<String> csvFeeder = csv("data.csv").circular();
 
-  // Define HTTP configuration
-  // Reference: https://docs.gatling.io/reference/script/protocols/http/protocol/
-  private static final HttpProtocolBuilder httpProtocol = http.baseUrl("https://api-ecomm.gatling.io")
-      .acceptHeader("application/json")
-      .userAgentHeader(
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36");
+    // Configuración del protocolo HTTP y headers para el servicio SOAP
+    HttpProtocolBuilder httpProtocol = http.baseUrl("http://www.dneonline.com")
+            .header("Content-Type", "text/xml; charset=utf-8")
+            .header("SOAPAction", "http://tempuri.org/Add");
 
-  // Define scenario
-  // Reference: https://docs.gatling.io/reference/script/core/scenario/
-  private static final ScenarioBuilder scenario = scenario("Scenario").exec(http("Session").get("/session"));
+    // Escenario principal
+    ScenarioBuilder scenario = scenario("SOAP Add Dynamic")
+            .feed(csvFeeder)
+            .exec(
+                    http("Add Operation")
+                            .post("/calculator.asmx")
+                            .header("Content-Type", "text/xml;charset=UTF-8")
+                            .header("SOAPAction", "http://tempuri.org/Add")
+                            .body(StringBody(session -> {
+                                String intA = session.getString("intA");
+                                String intB = session.getString("intB");
+                                String body = """
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tem="http://tempuri.org/">
+                                            <soapenv:Header/>
+                                            <soapenv:Body>
+                                                <tem:Add>
+                                                    <tem:intA>%s</tem:intA>
+                                                    <tem:intB>%s</tem:intB>
+                                                </tem:Add>
+                                            </soapenv:Body>
+                                        </soapenv:Envelope>
+                                        """.formatted(intA, intB);
+                                System.out.println("SOAP Body enviado:\n" + body);
+                                return body;
+                            }))
+                            .check(status().is(200))
+                            .check(xpath("//*:AddResult").saveAs("result"))
+            )
+            .exec(session -> {
+                String result = session.getString("result");
+                try {
+                    java.nio.file.Files.write(
+                            java.nio.file.Paths.get("target/results.txt"),
+                            (result + System.lineSeparator()).getBytes(),
+                            java.nio.file.StandardOpenOption.CREATE,
+                            java.nio.file.StandardOpenOption.APPEND
+                    );
+                    System.out.println("Resultado guardado: " + result);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                return session;
+            });
 
-  // Define assertions
-  // Reference: https://docs.gatling.io/reference/script/core/assertions/
-  private static final Assertion assertion = global().failedRequests().count().lt(1L);
-
-  // Define injection profile and execute the test
-  // Reference: https://docs.gatling.io/reference/script/core/injection/
-  {
-    setUp(scenario.injectOpen(atOnceUsers(vu))).assertions(assertion).protocols(httpProtocol);
-  }
+    {
+        setUp(
+                scenario.injectOpen(
+                        rampUsers(1).during(3),
+                         rampUsers(4).during(10),
+                         rampUsers(6).during(10),
+                         rampUsers(8).during(10),
+                         rampUsers(10).during(10)
+                )
+        ).protocols(httpProtocol);
+    }
 }
