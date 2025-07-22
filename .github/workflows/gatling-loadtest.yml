@@ -1,0 +1,30 @@
+name: Gatling Load Test
+
+on:
+  workflow_dispatch:  # Esto habilita la ejecución manual del pipeline
+
+jobs:
+  run-gatling:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar JDK 23
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '23'
+
+      - name: Mostrar estructura de archivos (debug)
+        run: ls -R
+
+      - name: Ejecutar pruebas Gatling
+        run: ./mvnw clean gatling:test
+
+      - name: Subir resultados Gatling como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: gatling-results
+          path: target/gatling
