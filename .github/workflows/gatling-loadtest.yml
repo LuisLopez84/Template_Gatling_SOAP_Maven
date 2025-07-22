@@ -17,6 +17,9 @@ jobs:
           distribution: 'temurin'
           java-version: '23'
 
+      - name: Dar permisos de ejecucion al wrapper
+        run: chmod +x mvnw
+
       - name: Mostrar estructura de archivos (debug)
         run: ls -R
 
