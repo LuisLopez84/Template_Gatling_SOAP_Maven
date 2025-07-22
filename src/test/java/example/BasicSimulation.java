@@ -63,7 +63,7 @@ public class BasicSimulation extends Simulation {
     {
         setUp(
                 scenario.injectOpen(
-                        rampUsers(1).during(3),
+                        rampUsers(2).during(10),
                          rampUsers(4).during(10),
                          rampUsers(6).during(10),
                          rampUsers(8).during(10),
